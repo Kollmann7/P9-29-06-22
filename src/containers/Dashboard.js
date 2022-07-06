@@ -75,6 +75,7 @@ export default class {
     $('#arrow-icon1').click((e) => this.handleShowTickets(e, bills, 1))
     $('#arrow-icon2').click((e) => this.handleShowTickets(e, bills, 2))
     $('#arrow-icon3').click((e) => this.handleShowTickets(e, bills, 3))
+    this.getBillsAllUsers()
     new Logout({ localStorage, onNavigate })
   }
 
@@ -146,6 +147,7 @@ export default class {
     }
 
     bills.forEach(bill => {
+      $(`#open-bill${bill.id}`).off("click")
       $(`#open-bill${bill.id}`).click((e) => this.handleEditTicket(e, bill, bills))
     })
 
