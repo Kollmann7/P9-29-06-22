@@ -19,7 +19,7 @@ const row = (bill) => {
     `)
   }
 
-const rows = (data) => {
+const rows = (data) => {  
   return (data && data.length) ? data.map(bill => row(bill)).join("") : ""
 }
 
@@ -48,6 +48,10 @@ export default ({ data: bills, loading, error }) => {
     return ErrorPage(error)
   }
   
+  let sortedBills
+  if (bills) {
+    sortedBills = [...bills].sort((a, b) => new Date(b.date) - new Date(a.date))
+  }
   return (`
     <div class='layout'>
       ${VerticalLayout(120)}
@@ -69,7 +73,7 @@ export default ({ data: bills, loading, error }) => {
               </tr>
           </thead>
           <tbody data-testid="tbody">
-            ${rows(bills)}
+            ${rows(sortedBills)}
           </tbody>
           </table>
         </div>
