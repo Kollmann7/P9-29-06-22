@@ -8,9 +8,6 @@ import NewBill from "../containers/NewBill.js"
 import {localStorageMock} from "../__mocks__/localStorage.js"
 import { ROUTES } from '../constants/routes'
 
-
-
-
 const onNavigate = (pathname) => {
   document.body.innerHTML = ROUTES({ pathname })
 }
