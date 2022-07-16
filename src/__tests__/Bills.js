@@ -100,4 +100,20 @@ describe('Given I am an employee', () => {
       expect(modale).toBeTruthy()
     })  
   })
+  describe("When i get data", () => {
+    test("Fetch data from mock API", async () => {
+      Object.defineProperty(window, "localStorage", {value: localStorageMock,})
+      localStorage.setItem("user", JSON.stringify({ type: "Employee" }))
+
+      const root = document.createElement("div")
+      root.setAttribute("id", "root")
+      document.body.append(root)
+      router()
+      
+      window.onNavigate(ROUTES_PATH.Bills)
+      await waitFor(() => screen.getAllByText("Mes notes de frais"))
+      expect(screen.getAllByText("Mes notes de frais")).toBeTruthy()
+    })
+  })
 })  
+
