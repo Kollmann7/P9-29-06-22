@@ -2,15 +2,14 @@
  * @jest-environment jsdom
  */
 
-import { screen, fireEvent } from "@testing-library/dom"
+import { screen, fireEvent  } from "@testing-library/dom"
 import NewBillUI from "../views/NewBillUI.js"
 import NewBill from "../containers/NewBill.js"
 import {localStorageMock} from "../__mocks__/localStorage.js"
 import { ROUTES } from '../constants/routes'
 import mockStore from '../__mocks__/store'
 import { bills } from '../fixtures/bills.js'
-import BillsUI from '../views/BillsUI.js'
-
+import userEvent from "@testing-library/user-event"
 
 
 const onNavigate = (pathname) => {
@@ -24,6 +23,7 @@ window.localStorage.setItem(
   })
 )
 
+
 describe("Given I am connected as an employee", () => {
   describe("When I am on NewBill Page", () => {
     test("Then the newBill should be rendered", () => {
@@ -34,19 +34,23 @@ describe("Given I am connected as an employee", () => {
     })
   })
 })
+
 describe("When I'm on NewBill Page", () => {
   let newBill 
     beforeEach( () => {
       document.body.innerHTML = NewBillUI()
-      newBill = new NewBill({document, onNavigate, store: null, localStorage: window.localStorage})
+      
+      newBill = new NewBill({document, onNavigate, store: mockStore, localStorage: window.localStorage})
 
     })
   describe('And I upload an image file', () => { 
     test('Then the file extension is correct', () => {
-      const handleChangeFile = jest.fn(() => newBill.handleChangeFile)
+
+      const submit = screen.queryByTestId('form-new-bill')
+      const spy = jest.spyOn(newBill, 'handleChangeFile')
+
       const inputFile = screen.queryByTestId('file')
 
-      inputFile.addEventListener('change', handleChangeFile)
 
       fireEvent.change(inputFile, {
         target: {
@@ -54,33 +58,59 @@ describe("When I'm on NewBill Page", () => {
         },
       })
 
-      const error = screen.queryByTestId('errorMessage')
-      expect(error).toBeFalsy
+      fireEvent.click(submit)
+
+      expect(spy).toHaveBeenCalled()
+      expect(inputFile.files[0].name).toBe('test.jpg')
+      expect(inputFile.files).toHaveLength(1)
+
+
+
     })
-    test('Then the file extension is incorrect', () => {    
-      const handleChangeFile = jest.fn(() => newBill.handleChangeFile)
+    test('Then the file extension is incorrect', () => {
+      const submit = screen.queryByTestId('form-new-bill')
+      const spy = jest.spyOn(newBill, 'handleChangeFile')
+
       const inputFile = screen.queryByTestId('file')
 
-      inputFile.addEventListener('change', handleChangeFile)
 
       fireEvent.change(inputFile, {
         target: {
-          files: [
-            new File(['test'], 'test.txt', {
-              type: 'text/plain',
-            }),
-          ],
+          files: [new File(['test'], 'test.txt', {type: 'text/plain',})]
         },
       })
 
+      fireEvent.click(submit)
+
+      expect(spy).toHaveBeenCalled()
+      expect(inputFile.files[0].name).toBe('test.txt')
+      expect(inputFile.value).toBe('')
+
       const error = screen.queryByTestId('errorMessage')
-      expect(error).toBeTruthy
+      expect(error).toBeTruthy()
+    })
+  })
+  describe('When I am on NewBill page, I filled in the form correctly and I clicked on submit button', () => {
+    test('Then Bills page should be rendered', () => {
+      const handleSubmit = jest.spyOn(newBill, 'handleSubmit')
+
+      const formNewBill = screen.getByTestId('form-new-bill')
+
+      fireEvent.submit(formNewBill)
+
+      expect(handleSubmit).toHaveBeenCalled()
+
+      expect(screen.getByText('Mes notes de frais')).toBeTruthy()
     })
   })
   describe('When I submit a valid bill', () => {
-    test('Then a bill is created', () =>{
-      const submit = screen.queryByTestId('form-new-bill')
+    test('Then it should create a new bill', () =>{
+      const spy = jest.spyOn(newBill, 'handleSubmit')
+
+      const email = JSON.parse(localStorage.getItem('user')).email
+
       const billTest = {
+        email,
         name: 'Test-Bill',
         pct: 10,
         vat: 10,
@@ -90,10 +120,8 @@ describe("When I'm on NewBill Page", () => {
         type: 'Bar',
         fileName: 'testBill',
         fileUrl: 'testBill.jpg',
-      };
-  
-      const handleSubmit = jest.fn((e) => newBill.handleSubmit(e))
-  
+      }
+    
       newBill.createBill = (newBill) => newBill
   
       document.querySelector(`input[data-testid="expense-name"]`).value = billTest.name
@@ -106,30 +134,55 @@ describe("When I'm on NewBill Page", () => {
       newBill.fileUrl = billTest.fileUrl
       newBill.fileName = billTest.fileName
   
-      submit.addEventListener('click', handleSubmit)
-  
-      fireEvent.click(submit)
-  
-      expect(handleSubmit).toHaveBeenCalled()
+      const btn = screen.getByRole('button')
+
+      userEvent.click(btn)      
+      expect(spy).toHaveBeenCalled()
+
     })
   })
 })
 
+
 describe('Given I am connected as an employee', () => {
-  describe('When I am on NewBill page and I upload a file with jpg, jpeg or png extension', () => {
-    test('Then a new bill should be stored in the API', async () => {
+  describe('When I am on NewBill page and submit a valid form', () => {
+    let newBill
+    let mockbill
+    beforeEach( () => {
       document.body.innerHTML = NewBillUI()
 
-      const spyCreate = jest.spyOn(mockStore.bills(), 'create')
-      const bill = await spyCreate()
+      const onNavigate = (pathname) => {
+        document.body.innerHTML = ROUTES({ pathname })
+      }
+      newBill = new NewBill({document, onNavigate,store: mockStore,localStorage: null })
 
-      expect(spyCreate).toHaveBeenCalled()
+      mockbill = {
+        name: '',
+        pct: 10,
+        vat: 10,
+        date: '2022-07-13',
+        amount: 180,
+        commentary: 'test de test',
+        type: 'Bar',
+        fileName: 'testBill',
+        fileUrl: '',
+      }
 
-      expect(bill.key).toBe('1234')
-      expect(bill.fileUrl).toBe('https://localhost:3456/images/test.jpg')
+    })
+    
+    
+    test('Then a new bill should be stored in the API', async () => {
+      const inputFile = screen.queryByTestId('file')
+      
+      userEvent.upload(inputFile,new File(['test'],'test.jpg', { type: 'image/jpg' }))
+      await new Promise(process.nextTick)
+      expect(newBill.billId).toBe('1234')
+      expect(newBill.fileUrl).toBe('https://localhost:3456/images/test.jpg')
+      
     })
   })
   describe('When an error occurs on API', () => {
+    let newBill
     beforeEach(() => {
       Object.defineProperty(window, 'localStorage', { value: localStorageMock })
       window.localStorage.setItem(
@@ -141,6 +194,11 @@ describe('Given I am connected as an employee', () => {
       )
 
       document.body.innerHTML = NewBillUI()
+
+      const onNavigate = (pathname) => {
+        document.body.innerHTML = ROUTES({ pathname, data: bills })
+      }
+      newBill = new NewBill({ document,onNavigate,store: mockStore,bills: bills,localStorage: window.localStorage,})
     })
 
     test('Then new bill are fetch from API but fails with 404 message error', async () => {
@@ -151,31 +209,17 @@ describe('Given I am connected as an employee', () => {
           create: jest.fn().mockRejectedValue(new Error('Erreur 404')),
         }
       })
-      const onNavigate = (pathname) => {
-        document.body.innerHTML = ROUTES({ pathname, data: bills })
-      }
-      const newBill = new NewBill({ document,onNavigate,store: mockStore,bills: bills,localStorage: window.localStorage,})
+      
       const inputFile = screen.queryByTestId('file')
 
-      fireEvent.change(inputFile, {
-        target: {
-          files: [
-            new File(['test'], 'test.txt', {
-              type: 'text/plain',
-            }),
-          ],
-        },
-      })
+      userEvent.upload(inputFile,new File(['test'],'test.txt', { type: 'image/txt' }))
 
-      
       await spyedMockStore()
 
       expect(spyedMockStore).toHaveBeenCalled()
 
       expect(newBill.billId).toBeNull()
       expect(newBill.fileUrl).toBeNull()
-      spyedMockStore.mockReset()
-      spyedMockStore.mockRestore()
     })
     test('Then new bill are fetch from API but fails with 500 message error', async () => {
       const spyedMockStore = jest.spyOn(mockStore, 'bills')
@@ -186,29 +230,9 @@ describe('Given I am connected as an employee', () => {
         }
       })
 
-      const onNavigate = (pathname) => {
-        document.body.innerHTML = ROUTES({ pathname, data: bills })
-      }
-
-      const newBill = new NewBill({
-        document,
-        onNavigate,
-        store: mockStore,
-        bills: bills,
-        localStorage: window.localStorage,
-      })
-
       const inputFile = screen.queryByTestId('file')
 
-      fireEvent.change(inputFile, {
-        target: {
-          files: [
-            new File(['test'], 'test.txt', {
-              type: 'text/plain',
-            }),
-          ],
-        },
-      })
+      userEvent.upload(inputFile,new File(['test'],'test.txt', { type: 'image/txt' }))
 
       await spyedMockStore()
 
