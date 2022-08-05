@@ -12,6 +12,7 @@ import {localStorageMock} from "../__mocks__/localStorage.js"
 import Bills from '../containers/Bills.js'
 import mockStore from '../__mocks__/store'
 import '@testing-library/jest-dom'
+import userEvent from '@testing-library/user-event'
 
 import router from "../app/Router.js"
 jest.mock('../app/store', () => mockStore)
@@ -45,75 +46,108 @@ describe("Given I am connected as an employee", () => {
   })
 })
 
-const onNavigate = (pathname) => {
-  document.body.innerHTML = ROUTES({ pathname })
-}
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock,
-})
-window.localStorage.setItem(
-  'user',
-  JSON.stringify({
-    type: 'Employee',
-  })
-)
 
 describe('Given I am an employee', () => {
   describe('When I navigate to the dashboard', () => {
-    test('When I click on the new bill button then a modal should open', () => {
-      
+    let bill
+    beforeEach(() => {
       document.body.innerHTML = BillsUI({ data: bills })
 
-      const bill = new Bills({document,onNavigate,store: null,bills,localStorage: window.localStorage})
+      const onNavigate = (pathname) => {
+        document.body.innerHTML = ROUTES({ pathname })
+      }
+      bill = new Bills({document,onNavigate,store: null,bills,localStorage: window.localStorage})
       $.fn.modal = jest.fn()
-
-      const handleClickNewBill = jest.fn((e) => bill.handleClickNewBill)
-
+    })
+    test('When I click on the new bill button then a modal should open', () => {
+      
+      const spy = jest.spyOn( bill, 'handleClickNewBill')
       const iconNewBill = screen.getByTestId('btn-new-bill')
-      iconNewBill.addEventListener('click', handleClickNewBill)
-      fireEvent.click(iconNewBill)
-
-      expect(handleClickNewBill).toHaveBeenCalled()
-
+      userEvent.click(iconNewBill)
+      expect(spy).toHaveBeenCalled()
       const modale = screen.getByTestId('form-new-bill')
       expect(modale).toBeTruthy()
-    
+
+
     })
     test('When i click on the eye icon of the bill then a modal sould open', () =>{
       
-      document.body.innerHTML = BillsUI({ data: bills })
-      const bill = new Bills({document,onNavigate,store: null,bills,localStorage: window.localStorage})
-      $.fn.modal = jest.fn();
-
-      const iconEye = screen.getAllByTestId('icon-eye')
+      const spy = jest.spyOn(bill, 'handleClickIconEye')
       
-      const handleClickIconEye = jest.fn((e) =>
-        bill.handleClickIconEye(iconEye[0])
-      )
-
-      iconEye[0].addEventListener('click', handleClickIconEye)
+      const iconEye = screen.getAllByTestId('icon-eye')
       fireEvent.click(iconEye[0])
 
-      expect(handleClickIconEye).toHaveBeenCalled()
+      const eyeIcons = screen.getAllByTestId('icon-eye')
+      userEvent.click(eyeIcons[0])
+
+      expect(spy).toHaveBeenCalled()
 
       const modale = screen.getByTestId('modaleFile')
       expect(modale).toBeTruthy()
     })  
   })
-  describe("When i get data", () => {
-    test("Fetch data from mock API", async () => {
-      Object.defineProperty(window, "localStorage", {value: localStorageMock,})
-      localStorage.setItem("user", JSON.stringify({ type: "Employee" }))
-
-      const root = document.createElement("div")
-      root.setAttribute("id", "root")
-      document.body.append(root)
-      router()
-      
-      window.onNavigate(ROUTES_PATH.Bills)
-      await waitFor(() => screen.getAllByText("Mes notes de frais"))
-      expect(screen.getAllByText("Mes notes de frais")).toBeTruthy()
-    })
-  })
 })  
 
+describe('Given I am a user connected as Employee', () => {
+  describe('When I navigate to Bills Page', () => {
+    test('Then the bills are fetched from the simulated API GET', async () => {
+      localStorage.setItem(
+        'user',
+        JSON.stringify({ type: 'Employee', email: 'a@a' })
+      )
+
+      const root = document.createElement('div')
+      root.setAttribute('id', 'root')
+      document.body.append(root)
+      router()
+      window.onNavigate(ROUTES_PATH.Bills)
+      await waitFor(() => screen.getByText('Mes notes de frais'))
+      const newBillButton = screen.getByText('Nouvelle note de frais')
+      expect(newBillButton).toBeTruthy()
+
+    })
+    describe('When an error occurs on API', () => {
+      beforeEach(() => {
+        jest.spyOn(mockStore, 'bills')
+        Object.defineProperty(window, 'localStorage', { value: localStorageMock })
+        window.localStorage.setItem(
+          'user',
+          JSON.stringify({
+            type: 'Employee',
+            email: 'a@a',
+          })
+        )
+        const root = document.createElement('div')
+        root.setAttribute('id', 'root')
+        document.body.appendChild(root)
+        router()
+      })
+      test('fetches bills from an API and fails with 404 message error', async () => {
+        mockStore.bills.mockImplementationOnce(() => {
+          return {
+            list: () => {
+              return Promise.reject(new Error('Erreur 404'))
+            },
+          }
+        })
+        window.onNavigate(ROUTES_PATH.Bills)
+        await new Promise(process.nextTick)
+        const message = screen.getByText(/Erreur 404/)
+        expect(message).toBeTruthy()
+      })
+    })
+    test('fetches messages from an API and fails with 500 message error', async () => {
+      mockStore.bills.mockImplementationOnce(() => {
+        return {
+          list: () => {
+            return Promise.reject(new Error('Erreur 500'))
+          },
+        }
+      })
+      window.onNavigate(ROUTES_PATH.Bills)
+      await new Promise(process.nextTick)
+      const message = screen.getByText(/Erreur 500/)
+      expect(message).toBeTruthy()
+    })
+  })
+})
